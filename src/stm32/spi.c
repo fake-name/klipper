@@ -88,10 +88,12 @@ spi_setup(uint32_t bus, uint8_t mode, uint32_t rate)
     // Calculate CR1 register
     uint32_t pclk = get_pclock_frequency((uint32_t)spi);
     uint32_t div = 0;
-    while ((pclk >> (div + 1)) > rate && div < 7)
-        div++;
+    while ((pclk >> (div + 1)) > rate && div < 7) {
+		div++;
+	}
+
 	#if CONFIG_MACH_STM32F3
-	// TODO: no idea
+	// TODO: no idea, this was taken as is from stm32f1
 	uint32_t cr1 = ((mode << 0U) | (div << 3U)
                     | SPI_CR1_SPE | SPI_CR1_MSTR | SPI_CR1_SSM | SPI_CR1_SSI);
 	#else

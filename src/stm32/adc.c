@@ -69,14 +69,9 @@ adc_calibrate(ADC_TypeDef *adc)
     while (adc->CR2 & ADC_CR2_CAL)
         ;
 #elif CONFIG_MACH_STM32F3
-	adc->CR = ADC_CR_ADEN;
-    udelay(10);
-	//TODO: what is it in STM32F3 ?
-    // adc->CR = ADC_CR_ADEN | ADC_CR2_RSTCAL;
-    // while (adc->CFGR & ADC_CR2_RSTCAL)
-    //     ;
+	// There is no reset for calibration in F3
     adc->CR = ADC_CR_ADEN | ADC_CR_ADCAL;
-    while (adc->CFGR & ADC_CR_ADCAL)
+    while (adc->CR & ADC_CR_ADCAL)
         ;
 #endif
 }
