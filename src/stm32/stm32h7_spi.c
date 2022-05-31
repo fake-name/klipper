@@ -23,7 +23,7 @@ DECL_CONSTANT_STR("BUS_PINS_spi1", "PA6,PA7,PA5");
 DECL_ENUMERATION("spi_bus", "spi1a", __COUNTER__);
 DECL_CONSTANT_STR("BUS_PINS_spi1a", "PB4,PB5,PB3");
 
-#if !CONFIG_MACH_STM32F1
+#if !CONFIG_MACH_STM32F1 && !CONFIG_MACH_STM32F3
 DECL_ENUMERATION("spi_bus", "spi2a", __COUNTER__);
 DECL_CONSTANT_STR("BUS_PINS_spi2a", "PC2,PC3,PB10");
 #endif
@@ -63,7 +63,7 @@ static const struct spi_info spi_bus[] = {
     { SPI2, GPIO('B', 14), GPIO('B', 15), GPIO('B', 13), GPIO_FUNCTION(5) },
     { SPI1, GPIO('A', 6), GPIO('A', 7), GPIO('A', 5), GPIO_FUNCTION(5) },
     { SPI1, GPIO('B', 4), GPIO('B', 5), GPIO('B', 3), GPIO_FUNCTION(5) },
-#if !CONFIG_MACH_STM32F1
+#if !CONFIG_MACH_STM32F1 && !CONFIG_MACH_STM32F3
     { SPI2, GPIO('C', 2), GPIO('C', 3), GPIO('B', 10), GPIO_FUNCTION(5) },
 #endif
 #ifdef SPI3

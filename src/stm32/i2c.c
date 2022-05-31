@@ -51,7 +51,7 @@ static const struct i2c_info i2c_bus[] = {
 static void
 i2c_busy_errata(uint8_t scl_pin, uint8_t sda_pin)
 {
-    if (! CONFIG_MACH_STM32F1)
+    if (! CONFIG_MACH_STM32F1 && ! CONFIG_MACH_STM32F3)
         return;
     gpio_peripheral(scl_pin, GPIO_OUTPUT | GPIO_OPEN_DRAIN, 1);
     gpio_peripheral(sda_pin, GPIO_OUTPUT | GPIO_OPEN_DRAIN, 1);
@@ -82,8 +82,12 @@ i2c_setup(uint32_t bus, uint32_t rate, uint8_t addr)
         // Set 100Khz frequency and enable
         uint32_t pclk = get_pclock_frequency((uint32_t)i2c);
         i2c->CR2 = pclk / 1000000;
-        i2c->CCR = pclk / 100000 / 2;
-        i2c->TRISE = (pclk / 1000000) + 1;
+		#if CONFIG_MACH_STM32F3
+		//TODO: no idea about this one
+		#else
+		i2c->CCR = pclk / 100000 / 2;
+		i2c->TRISE = (pclk / 1000000) + 1;
+		#endif
         i2c->CR1 = I2C_CR1_PE;
     }
 
@@ -94,7 +98,12 @@ static uint32_t
 i2c_wait(I2C_TypeDef *i2c, uint32_t set, uint32_t clear, uint32_t timeout)
 {
     for (;;) {
-        uint32_t sr1 = i2c->SR1;
+		#if CONFIG_MACH_STM32F3
+		//TODO: no idea?
+		uint32_t sr1 = i2c->ISR;
+		#else
+		uint32_t sr1 = i2c->SR1;
+		#endif
         if ((sr1 & set) == set && (sr1 & clear) == 0)
             return sr1;
         if (!timer_is_before(timer_read_time(), timeout))
@@ -106,6 +115,24 @@ static void
 i2c_start(I2C_TypeDef *i2c, uint8_t addr, uint8_t xfer_len,
           uint32_t timeout)
 {
+	#if CONFIG_MACH_STM32F3
+	i2c->CR2 = I2C_CR2_START;
+	//TODO: probably not needed/wrong
+	i2c->CR1 = I2C_CR1_PE;
+	//TODO: absolutely no clue
+	i2c_wait(i2c, I2C_ISR_DIR, 0, timeout);
+	i2c->TXDR = addr;
+    if (addr & 0x01)
+        i2c->CR2 |= I2C_CR2_NACK;
+    i2c_wait(i2c, I2C_ISR_ADDR, 0, timeout);
+    irqstatus_t flag = irq_save();
+    uint32_t sr2 = i2c->ICR;
+    if (addr & 0x01 && xfer_len == 1)
+        i2c->CR2 = I2C_CR2_STOP | I2C_CR2_PECBYTE;
+    irq_restore(flag);
+    if (!(sr2 & I2C_ICR_ADDRCF))
+        shutdown("Failed to send i2c addr");
+	#else
     i2c->CR1 = I2C_CR1_START | I2C_CR1_PE;
     i2c_wait(i2c, I2C_SR1_SB, 0, timeout);
     i2c->DR = addr;
@@ -119,23 +146,37 @@ i2c_start(I2C_TypeDef *i2c, uint8_t addr, uint8_t xfer_len,
     irq_restore(flag);
     if (!(sr2 & I2C_SR2_MSL))
         shutdown("Failed to send i2c addr");
+	#endif
 }
 
 static void
 i2c_send_byte(I2C_TypeDef *i2c, uint8_t b, uint32_t timeout)
 {
+	#if CONFIG_MACH_STM32F3
+	i2c->TXDR = b;
+    i2c_wait(i2c, I2C_ISR_TXE, 0, timeout);
+	#else
     i2c->DR = b;
     i2c_wait(i2c, I2C_SR1_TXE, 0, timeout);
+	#endif
 }
 
 static uint8_t
 i2c_read_byte(I2C_TypeDef *i2c, uint32_t timeout, uint8_t remaining)
 {
+	#if CONFIG_MACH_STM32F3
+	i2c_wait(i2c, I2C_ISR_RXNE, 0, timeout);
+    irqstatus_t flag = irq_save();
+	uint8_t b = i2c->RXDR;
+	if (remaining == 1)
+		i2c->CR2 = I2C_CR2_STOP | I2C_CR2_PECBYTE;
+	#else
     i2c_wait(i2c, I2C_SR1_RXNE, 0, timeout);
     irqstatus_t flag = irq_save();
     uint8_t b = i2c->DR;
     if (remaining == 1)
         i2c->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
+	#endif
     irq_restore(flag);
     return b;
 }
@@ -143,8 +184,13 @@ i2c_read_byte(I2C_TypeDef *i2c, uint32_t timeout, uint8_t remaining)
 static void
 i2c_stop(I2C_TypeDef *i2c, uint32_t timeout)
 {
-    i2c->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
-    i2c_wait(i2c, 0, I2C_SR1_TXE, timeout);
+	#if CONFIG_MACH_STM32F3
+	i2c->CR2 = I2C_CR2_STOP | I2C_CR2_PECBYTE;
+	i2c_wait(i2c, 0, I2C_ISR_TXE, timeout);
+	#else
+	i2c->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
+	i2c_wait(i2c, 0, I2C_SR1_TXE, timeout);
+	#endif
 }
 
 void
@@ -179,5 +225,9 @@ i2c_read(struct i2c_config config, uint8_t reg_len, uint8_t *reg
         *read = i2c_read_byte(i2c, timeout, read_len);
         read++;
     }
+	#if CONFIG_MACH_STM32F3
+	i2c_wait(i2c, 0, I2C_ISR_RXNE, timeout);
+	#else
     i2c_wait(i2c, 0, I2C_SR1_RXNE, timeout);
+	#endif
 }

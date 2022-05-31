@@ -24,7 +24,7 @@ static const uint8_t adc_pins[] = {
     GPIO('B', 0), GPIO('B', 1), GPIO('C', 0), GPIO('C', 1),
     GPIO('C', 2), GPIO('C', 3), GPIO('C', 4), GPIO('C', 5),
 
-#if CONFIG_MACH_STM32F1
+#if CONFIG_MACH_STM32F1 || CONFIG_MACH_STM32F3
     ADC_TEMPERATURE_PIN,
 #elif CONFIG_MACH_STM32F2 || CONFIG_MACH_STM32F4x5
     ADC_TEMPERATURE_PIN, 0x00, 0x00,
@@ -43,6 +43,9 @@ static const uint8_t adc_pins[] = {
 #if CONFIG_MACH_STM32F1
 #define CR2_FLAGS (ADC_CR2_ADON | (7 << ADC_CR2_EXTSEL_Pos) | ADC_CR2_EXTTRIG \
                    | ADC_CR2_TSVREFE)
+#elif CONFIG_MACH_STM32F3
+//TODO: None of that exists in CR registry
+#define CR2_FLAGS ADC_CR_ADEN
 #else
 #define CR2_FLAGS ADC_CR2_ADON
 #endif
@@ -64,6 +67,16 @@ adc_calibrate(ADC_TypeDef *adc)
         ;
     adc->CR2 = ADC_CR2_ADON | ADC_CR2_CAL;
     while (adc->CR2 & ADC_CR2_CAL)
+        ;
+#elif CONFIG_MACH_STM32F3
+	adc->CR = ADC_CR_ADEN;
+    udelay(10);
+	//TODO: what is it in STM32F3 ?
+    // adc->CR = ADC_CR_ADEN | ADC_CR2_RSTCAL;
+    // while (adc->CFGR & ADC_CR2_RSTCAL)
+    //     ;
+    adc->CR = ADC_CR_ADEN | ADC_CR_ADCAL;
+    while (adc->CFGR & ADC_CR_ADCAL)
         ;
 #endif
 }
@@ -104,11 +117,16 @@ gpio_adc_setup(uint32_t pin)
         adc->SMPR2 = (aticks | (aticks << 3) | (aticks << 6) | (aticks << 9)
                       | (aticks << 12) | (aticks << 15) | (aticks << 18)
                       | (aticks << 21) | (aticks << 24) | (aticks << 27));
-        adc->CR2 = CR2_FLAGS;
+		#if CONFIG_MACH_STM32F3
+        adc->CR = CR2_FLAGS;
+		#else
+		adc->CR2 = CR2_FLAGS;
+		#endif
     }
 
     if (pin == ADC_TEMPERATURE_PIN) {
-#if !(CONFIG_MACH_STM32F1 || CONFIG_MACH_STM32F401)
+		//TODO: is it correct?
+#if !(CONFIG_MACH_STM32F1 || CONFIG_MACH_STM32F3 || CONFIG_MACH_STM32F401)
         ADC123_COMMON->CCR = ADC_CCR_TSVREFE;
 #endif
     } else {
@@ -125,17 +143,32 @@ uint32_t
 gpio_adc_sample(struct gpio_adc g)
 {
     ADC_TypeDef *adc = g.adc;
-    uint32_t sr = adc->SR;
-    if (sr & ADC_SR_STRT) {
-        if (!(sr & ADC_SR_EOC) || adc->SQR3 != g.chan)
-            // Conversion still in progress or busy on another channel
-            goto need_delay;
-        // Conversion ready
-        return 0;
-    }
-    // Start sample
-    adc->SQR3 = g.chan;
-    adc->CR2 = ADC_CR2_SWSTART | CR2_FLAGS;
+	#if CONFIG_MACH_STM32F3
+	uint32_t sr = adc->CR;
+	if (sr & ADC_CR_ADSTART) {
+		if (!(sr & ADC_CR_ADSTP) || adc->SQR3 != g.chan)
+			// Conversion still in progress or busy on another channel
+			goto need_delay;
+		// Conversion ready
+		return 0;
+	}
+	// Start sample
+	adc->SQR3 = g.chan;
+	adc->CR = ADC_CR_ADSTART | CR2_FLAGS;
+
+	#else
+	uint32_t sr = adc->SR;
+	if (sr & ADC_SR_STRT) {
+		if (!(sr & ADC_SR_EOC) || adc->SQR3 != g.chan)
+			// Conversion still in progress or busy on another channel
+			goto need_delay;
+		// Conversion ready
+		return 0;
+	}
+	// Start sample
+	adc->SQR3 = g.chan;
+	adc->CR2 = ADC_CR2_SWSTART | CR2_FLAGS;
+	#endif
 
 need_delay:
     return timer_from_us(20);
@@ -145,18 +178,32 @@ need_delay:
 uint16_t
 gpio_adc_read(struct gpio_adc g)
 {
+	#if CONFIG_MACH_STM32F3
+	ADC_TypeDef *adc = g.adc;
+    adc->CR = ~ADC_CR_ADSTART;
+    return adc->DR;
+	#else
     ADC_TypeDef *adc = g.adc;
     adc->SR = ~ADC_SR_STRT;
     return adc->DR;
+	#endif
 }
 
 // Cancel a sample that may have been started with gpio_adc_sample()
 void
 gpio_adc_cancel_sample(struct gpio_adc g)
 {
+	#if CONFIG_MACH_STM32F3
+	ADC_TypeDef *adc = g.adc;
+    irqstatus_t flag = irq_save();
+    if (adc->CR & ADC_CR_ADSTART && adc->SQR3 == g.chan)
+        gpio_adc_read(g);
+    irq_restore(flag);
+	#else
     ADC_TypeDef *adc = g.adc;
     irqstatus_t flag = irq_save();
     if (adc->SR & ADC_SR_STRT && adc->SQR3 == g.chan)
         gpio_adc_read(g);
     irq_restore(flag);
+	#endif
 }

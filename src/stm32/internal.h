@@ -10,6 +10,8 @@
 #include "stm32f1xx.h"
 #elif CONFIG_MACH_STM32F2
 #include "stm32f2xx.h"
+#elif CONFIG_MACH_STM32F3
+#include "stm32f30x.h"
 #elif CONFIG_MACH_STM32F4
 #include "stm32f4xx.h"
 #elif CONFIG_MACH_STM32G0
