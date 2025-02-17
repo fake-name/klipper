@@ -83,7 +83,7 @@ static const struct gpio_pwm_info pwm_regs[] = {
     {TIM15, GPIO('F', 9), 1, GPIO_FUNCTION(0)},
     {TIM15, GPIO('F', 10), 2, GPIO_FUNCTION(0)}
   #endif
-#elif CONFIG_MACH_STM32F1
+#elif CONFIG_MACH_STM32F1 || CONFIG_MACH_STM32F303
     {TIM2, GPIO('A', 0),  1, GPIO_FUNCTION(2)},
     {TIM2, GPIO('A', 1),  2, GPIO_FUNCTION(2)},
     {TIM2, GPIO('A', 2),  3, GPIO_FUNCTION(2)},

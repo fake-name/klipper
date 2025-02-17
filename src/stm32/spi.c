@@ -25,7 +25,7 @@ DECL_CONSTANT_STR("BUS_PINS_spi1a", "PB4,PB5,PB3");
 #if CONFIG_MACH_STM32G4
  DECL_ENUMERATION("spi_bus", "spi2_PA10_PA11_PF1", 3);
  DECL_CONSTANT_STR("BUS_PINS_spi2_PA10_PA11_PF1", "PA10,PA11,PF1");
-#elif !CONFIG_MACH_STM32F1
+#elif !(CONFIG_MACH_STM32F1 || CONFIG_MACH_STM32F3)
  DECL_ENUMERATION("spi_bus", "spi2a", 3);
  DECL_CONSTANT_STR("BUS_PINS_spi2a", "PC2,PC3,PB10");
 #endif
@@ -109,11 +109,18 @@ spi_setup(uint32_t bus, uint8_t mode, uint32_t rate)
     // Calculate CR1 register
     uint32_t pclk = get_pclock_frequency((uint32_t)spi);
     uint32_t div = 0;
-    while ((pclk >> (div + 1)) > rate && div < 7)
-        div++;
+    while ((pclk >> (div + 1)) > rate && div < 7) {
+		div++;
+	}
+
+	#if CONFIG_MACH_STM32F3
+	// TODO: no idea, this was taken as is from stm32f1
+	uint32_t cr1 = ((mode << 0U) | (div << 3U)
+                    | SPI_CR1_SPE | SPI_CR1_MSTR | SPI_CR1_SSM | SPI_CR1_SSI);
+	#else
     uint32_t cr1 = ((mode << SPI_CR1_CPHA_Pos) | (div << SPI_CR1_BR_Pos)
                     | SPI_CR1_SPE | SPI_CR1_MSTR | SPI_CR1_SSM | SPI_CR1_SSI);
-
+	#endif
     return (struct spi_config){ .spi = spi, .spi_cr1 = cr1 };
 }
 

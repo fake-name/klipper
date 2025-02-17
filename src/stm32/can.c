@@ -57,7 +57,7 @@
  #define CAN_FUNCTION  GPIO_FUNCTION(4)  // Alternative function mapping number
 #endif
 
-#if CONFIG_MACH_STM32F1
+#if CONFIG_MACH_STM32F1 || CONFIG_MACH_STM32F3
  #define SOC_CAN CAN1
  #define FILTER_CAN CAN1
  #define CAN_RX0_IRQn  CAN1_RX0_IRQn

@@ -14,8 +14,8 @@
 #include "command.h" // DECL_CONSTANT_STR
 #include "internal.h" // GPIO
 #include "sched.h" // DECL_INIT
-
-#if CONFIG_MACH_STM32F1
+ 
+#if CONFIG_MACH_STM32F1 || CONFIG_MACH_STM32F3
   // Transfer memory is accessed with 32bits, but contains only 16bits of data
   typedef volatile uint32_t epmword_t;
   #define WSIZE 2
@@ -411,7 +411,7 @@ DECL_CONSTANT_STR("RESERVE_PINS_USB", "PA11,PA12");
 void
 usb_init(void)
 {
-    if (CONFIG_MACH_STM32F1) {
+    if (CONFIG_MACH_STM32F1 || CONFIG_MACH_STM32F3) {
         // Pull the D+ pin low briefly to signal a new connection
         gpio_out_setup(GPIO('A', 12), 0);
         udelay(5000);
