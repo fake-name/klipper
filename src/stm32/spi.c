@@ -53,9 +53,9 @@ DECL_CONSTANT_STR("BUS_PINS_spi1a", "PB4,PB5,PB3");
     GPIO_FUNCTION(fn), GPIO_FUNCTION(fn)
 
 #if CONFIG_MACH_STM32F0 || CONFIG_MACH_STM32G0
- #define SPI_FUNCTION_ALL GPIO_FUNCTION_ALL(0)
+    #define SPI_FUNCTION_ALL GPIO_FUNCTION_ALL(0)
 #else
- #define SPI_FUNCTION_ALL GPIO_FUNCTION_ALL(5)
+    #define SPI_FUNCTION_ALL GPIO_FUNCTION_ALL(5)
 #endif
 
 static const struct spi_info spi_bus[] = {
@@ -98,29 +98,29 @@ spi_setup(uint32_t bus, uint8_t mode, uint32_t rate)
         gpio_peripheral(spi_bus[bus].mosi_pin, spi_bus[bus].mosi_af, 0);
         gpio_peripheral(spi_bus[bus].sck_pin, spi_bus[bus].sck_af, 0);
 
-        // Configure CR2 on stm32 f0/f7/g0/l4/g4
-#if CONFIG_MACH_STM32F0 || CONFIG_MACH_STM32F7 || \
-    CONFIG_MACH_STM32G0 || CONFIG_MACH_STM32G4 || \
-    CONFIG_MACH_STM32L4
-        spi->CR2 = SPI_CR2_FRXTH | (7 << SPI_CR2_DS_Pos);
-#endif
+                // Configure CR2 on stm32 f0/f7/g0/l4/g4
+        #if CONFIG_MACH_STM32F0 || CONFIG_MACH_STM32F7 || \
+            CONFIG_MACH_STM32G0 || CONFIG_MACH_STM32G4 || \
+            CONFIG_MACH_STM32L4
+                spi->CR2 = SPI_CR2_FRXTH | (7 << SPI_CR2_DS_Pos);
+        #endif
     }
 
     // Calculate CR1 register
     uint32_t pclk = get_pclock_frequency((uint32_t)spi);
     uint32_t div = 0;
     while ((pclk >> (div + 1)) > rate && div < 7) {
-		div++;
-	}
+        div++;
+    }
 
-	#if CONFIG_MACH_STM32F3
-	// TODO: no idea, this was taken as is from stm32f1
-	uint32_t cr1 = ((mode << 0U) | (div << 3U)
-                    | SPI_CR1_SPE | SPI_CR1_MSTR | SPI_CR1_SSM | SPI_CR1_SSI);
-	#else
-    uint32_t cr1 = ((mode << SPI_CR1_CPHA_Pos) | (div << SPI_CR1_BR_Pos)
-                    | SPI_CR1_SPE | SPI_CR1_MSTR | SPI_CR1_SSM | SPI_CR1_SSI);
-	#endif
+    #if CONFIG_MACH_STM32F3
+        // TODO: no idea, this was taken as is from stm32f1
+        uint32_t cr1 = ((mode << 0U) | (div << 3U)
+                        | SPI_CR1_SPE | SPI_CR1_MSTR | SPI_CR1_SSM | SPI_CR1_SSI);
+    #else
+        uint32_t cr1 = ((mode << SPI_CR1_CPHA_Pos) | (div << SPI_CR1_BR_Pos)
+                        | SPI_CR1_SPE | SPI_CR1_MSTR | SPI_CR1_SSM | SPI_CR1_SSI);
+    #endif
     return (struct spi_config){ .spi = spi, .spi_cr1 = cr1 };
 }
 
@@ -130,7 +130,9 @@ spi_prepare(struct spi_config config)
     SPI_TypeDef *spi = config.spi;
     uint32_t cr1 = spi->CR1;
     if (cr1 == config.spi_cr1)
+    {
         return;
+    }
     // The SPE bit must be disabled before changing CPOL/CPHA bits
     spi->CR1 = cr1 & ~SPI_CR1_SPE;
     spi->CR1; // Force flush of previous write
@@ -145,13 +147,20 @@ spi_transfer(struct spi_config config, uint8_t receive_data,
     while (len--) {
         writeb((void*)&spi->DR, *data);
         while (!(spi->SR & SPI_SR_RXNE))
+        {
             ;
+        }
+
         uint8_t rdata = readb((void*)&spi->DR);
         if (receive_data)
+        {
             *data = rdata;
+        }
         data++;
     }
     // Wait for any remaining SCLK updates before returning
     while ((spi->SR & (SPI_SR_TXE|SPI_SR_BSY)) != SPI_SR_TXE)
+    {
         ;
+    }
 }
