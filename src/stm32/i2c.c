@@ -101,14 +101,25 @@ i2c_wait(I2C_TypeDef *i2c, uint32_t set, uint32_t clear, uint32_t timeout)
     for (;;) {
         #if CONFIG_MACH_STM32F3
             //TODO: no idea?
+            #pragma "fix me!"
             uint32_t sr1 = i2c->ISR;
         #else
             uint32_t sr1 = i2c->SR1;
         #endif
+
         if ((sr1 & set) == set && (sr1 & clear) == 0)
+        {
             return sr1;
-        if (sr1 & I2C_SR1_AF)
-            shutdown("I2C NACK error encountered");
+        }
+
+        #if CONFIG_MACH_STM32F3
+            //TODO: no idea?
+            #pragma "fix me!"
+        #else
+            if (sr1 & I2C_SR1_AF)
+                shutdown("I2C NACK error encountered");
+        #endif
+
         if (!timer_is_before(timer_read_time(), timeout))
             shutdown("i2c timeout");
     }
